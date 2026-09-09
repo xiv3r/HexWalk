@@ -43,6 +43,10 @@ void HashDialog::keyPressEvent(QKeyEvent *event) {
 }
 void HashDialog::calculate(QString filepath)
 {
+    if (_hashing)
+        return;
+    _hashing = true;
+
     QFile in(filepath);
     haltCalc = false;
     ui->md5Lbl->setText("");
@@ -90,6 +94,7 @@ void HashDialog::calculate(QString filepath)
 
         in.close();
     }
+    _hashing = false;
 }
 
 void HashDialog::on_pushButton_clicked()

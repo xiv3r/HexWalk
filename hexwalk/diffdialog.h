@@ -49,7 +49,10 @@ private slots:
 
 private:
     Ui::DiffDialog *ui;
-    QProgressDialog *progrDialog;
+    // on_nextDiffBtn_clicked() pumps the event loop, so the button can be
+    // pressed again mid-scan; that used to overwrite the progress dialog
+    // pointer and leave the first one on screen.
+    bool _scanning = false;
 };
 
 #endif // DIFFDIALOG_H

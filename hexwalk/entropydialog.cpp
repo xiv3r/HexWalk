@@ -30,6 +30,12 @@ EntropyDialog::EntropyDialog(QHexEdit * hexedit,QWidget *parent) :
     _hexed = hexedit;
     ui->setupUi(this);
     connect(static_cast<HexWalkMain*>(parent), &HexWalkMain::fileLoaded, this, &EntropyDialog::refresh);
+    // Connected once here. These used to be made at the end of calculate(),
+    // so every run added another copy and a single click emitted the signal
+    // once per analysis performed.
+    connect(ui->entropyChart, &EntropyChart::mousePressed, this, &EntropyDialog::mousePressed);
+    connect(ui->entropyChart, &EntropyChart::mouseMoved, this, &EntropyDialog::mouseMoved);
+    connect(ui->entropyChart, &EntropyChart::rubberBandEvent, this, &EntropyDialog::limitZoomOut);
 }
 double EntropyDialog::blockEntropy(QByteArray * data)
 {
@@ -60,6 +66,14 @@ void EntropyDialog::refresh()
 }
 void EntropyDialog::calculate()
 {
+    // QCoreApplication::processEvents() below keeps the UI alive, which also
+    // means Analysis/Entropy (or Ctrl+E, or the toolbar) can fire again while
+    // we are still in this loop. Refuse the re-entrant call instead of
+    // clobbering the members it shares with the run already in progress.
+    if (_calculating)
+        return;
+    _calculating = true;
+
     qint64 cursor = 0;
     qint64 dataSize = 1024;
     qint64 blockSize = 1024;
@@ -73,9 +87,12 @@ void EntropyDialog::calculate()
         blockSize = 16384;
     }
     series = new QLineSeries();
-    progrDialog = new QProgressDialog("Entropy calculation in progress...","Cancel",0,100,this);
-    progrDialog->setValue(0);
-    progrDialog->show();
+    // Stack allocated: it is only needed for the duration of the scan, and as
+    // a member it was leaked on every run and cancelled the wrong dialog when
+    // two runs overlapped.
+    QProgressDialog progrDialog("Entropy calculation in progress...","Cancel",0,100,this);
+    progrDialog.setValue(0);
+    progrDialog.show();
 
     while(cursor < _hexed->getSize())
     {
@@ -87,13 +104,13 @@ void EntropyDialog::calculate()
        QByteArray data = _hexed->dataAt(cursor,dataSize);
        series->append(cursor,blockEntropy(&data));
        cursor+=dataSize;
-       progrDialog->setValue(int(100.0*(double(cursor)/double(_hexed->getSize()))));
+       progrDialog.setValue(int(100.0*(double(cursor)/double(_hexed->getSize()))));
        QCoreApplication::processEvents();
-       if(progrDialog->wasCanceled())
+       if(progrDialog.wasCanceled())
            break;
     }
 
-    progrDialog->cancel();
+    progrDialog.cancel();
     series->setColor(Qt::green);
 
     QChart *chart = new QChart();
@@ -109,7 +126,13 @@ void EntropyDialog::calculate()
     chart->setTitleBrush(QBrush(QColor("lightgray")));
     //entropyView = new EntropyChart(chart,this);
     //entropyView->setRenderHint(QPainter::Antialiasing);
+    // QChartView::setChart() takes ownership of the new chart but only
+    // *releases* the previous one, so the old chart (and the QLineSeries it
+    // owns) has to be deleted here or every run leaks both.
+    QChart *oldChart = ui->entropyChart->chart();
     ui->entropyChart->setChart(chart);
+    if (oldChart && oldChart != chart)
+        delete oldChart;
     ui->entropyChart->setRubberBand(QChartView::HorizontalRubberBand);
     ui->entropyChart->setDragMode(QGraphicsView::ScrollHandDrag);
     //QLayoutItem *item;
@@ -119,10 +142,7 @@ void EntropyDialog::calculate()
        delete item;
     }
     ui->verticalLayout->addWidget(entropyView);*/
-    connect(ui->entropyChart, &EntropyChart::mousePressed, this, &EntropyDialog::mousePressed);
-    connect(ui->entropyChart, &EntropyChart::mouseMoved, this, &EntropyDialog::mouseMoved);
-    connect(ui->entropyChart, &EntropyChart::rubberBandEvent, this, &EntropyDialog::limitZoomOut);
-
+    _calculating = false;
 }
 
 void EntropyDialog::mousePressed(qint64 value)

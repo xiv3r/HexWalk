@@ -43,6 +43,10 @@ private slots:
 private:
     Ui::HashDialog *ui;
     bool haltCalc;
+    // calculate() pumps the event loop, so it can be started again while it
+    // runs. The hashes are locals so nothing corrupts, but the nested call
+    // resets haltCalc and would silently cancel the user's cancel.
+    bool _hashing = false;
 };
 
 #endif // HASHDIALOG_H

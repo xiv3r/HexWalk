@@ -41,6 +41,9 @@ StringsDialog::~StringsDialog()
 }
 void StringsDialog::searchStrings()
 {
+    if (_searching)
+        return;
+    _searching = true;
 
     QStringList stringList;
     qint64 cursor = 0;
@@ -58,9 +61,12 @@ void StringsDialog::searchStrings()
     timer.start();
 
     //qInfo()<<"Starting search...\n";
-    progrDialog = new QProgressDialog("Search in progress...","Cancel",0,100,this);
-    progrDialog->setValue(0);
-    progrDialog->show();
+    // Local: it is only needed while the scan runs. As a member it leaked on
+    // every search and, if a second search started inside processEvents(),
+    // cancel() closed the wrong dialog.
+    QProgressDialog progrDialog("Search in progress...","Cancel",0,100,this);
+    progrDialog.setValue(0);
+    progrDialog.show();
     /*while(ui->tableWidget->rowCount() > 0)
     {
         ui->tableWidget->removeRow(0);
@@ -185,7 +191,7 @@ void StringsDialog::searchStrings()
             }
         }
         cursor+=dataSize;
-        progrDialog->setValue(int(100.0*(double(cursor)/double(_hexEdit->getSize()))));
+        progrDialog.setValue(int(100.0*(double(cursor)/double(_hexEdit->getSize()))));
         QCoreApplication::processEvents();
         /*if(occurrencies > 100000)
         {
@@ -193,11 +199,11 @@ void StringsDialog::searchStrings()
             QMessageBox::warning(this, tr("HexWalk"),tr("Too much occurrencies found, stopping search."));
             break;
         }*/
-        if(progrDialog->wasCanceled())
+        if(progrDialog.wasCanceled())
             break;
     }
 
-    progrDialog->cancel();
+    progrDialog.cancel();
     if((int)rawString.length() >= ui->spinBoxMinLen->value())
     {
         ui->tableWidget->insertRow(ui->tableWidget->rowCount());
@@ -213,6 +219,9 @@ void StringsDialog::searchStrings()
 
     QString message = QString("%1 occurrencies found").arg(occurrencies);
     QMessageBox::information(this, tr("HexWalk"),message);
+    // Cleared last: the message box above runs its own event loop, so the
+    // guard has to stay up until this call frame is really finished.
+    _searching = false;
     //qDebug() << timer.elapsed();
     //qInfo()<<"done.\n";
 }

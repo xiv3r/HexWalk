@@ -52,8 +52,13 @@ private:
     QHexEdit * _hexed;
     double blockEntropy(QByteArray * data);
     EntropyChart *entropyView;
-    QProgressDialog *progrDialog;
+    // series is owned by the chart currently set on ui->entropyChart; it stays
+    // a member only because mouseMoved() reads it.
     QLineSeries *series = NULL;
+    // calculate() pumps the event loop, so the action that starts it can be
+    // triggered again while it runs. Re-entering used to overwrite series and
+    // hand the same QLineSeries to two QCharts, which double-freed on close.
+    bool _calculating = false;
     QPointF findClosestPoint(QLineSeries* lineSeries, qreal x);
 };
 

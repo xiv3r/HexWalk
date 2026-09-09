@@ -114,12 +114,18 @@ void DiffDialog::setFiles(QString file1str, QString file2str)
 
 void DiffDialog::on_nextDiffBtn_clicked()
 {
-    progrDialog = new QProgressDialog("Task in progress...","Cancel",0,100,this);
-    progrDialog->setValue(0);
-    progrDialog->setModal(true);
-    progrDialog->show();
+    if (_scanning)
+        return;
+    _scanning = true;
+
+    // Local: only needed while the scan runs. As a member it leaked on every
+    // click and the wrong dialog was hidden when two scans overlapped.
+    QProgressDialog progrDialog("Task in progress...","Cancel",0,100,this);
+    progrDialog.setValue(0);
+    progrDialog.setModal(true);
+    progrDialog.show();
     qint64 pos = ui->hexEdit1->cursorPosition();
-    progrDialog->setValue(100.0*(double)(pos/2)/ui->hexEdit1->getSize());
+    progrDialog.setValue(100.0*(double)(pos/2)/ui->hexEdit1->getSize());
     int idx = 0;
     while(pos/2 < ui->hexEdit1->getSize())
     {
@@ -145,16 +151,16 @@ void DiffDialog::on_nextDiffBtn_clicked()
         idx++;
 
 
-        if(progrDialog->wasCanceled())
+        if(progrDialog.wasCanceled())
         {
             break;
         }
-        progrDialog->setValue((int)(100.0*(double)(pos/2)/ui->hexEdit1->getSize()));
+        progrDialog.setValue((int)(100.0*(double)(pos/2)/ui->hexEdit1->getSize()));
         QCoreApplication::processEvents();
 
     }
-    progrDialog->hide();
-
+    progrDialog.hide();
+    _scanning = false;
 }
 
 

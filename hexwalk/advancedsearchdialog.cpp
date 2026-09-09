@@ -115,6 +115,11 @@ QString AdvancedSearchDialog::binToStr(QByteArray bin)
 }
 void AdvancedSearchDialog::findAll()
 {
+    if (_searching)
+        return;
+    _searching = true;
+
+    delete progrDialog;                 // no-op on the first search
     progrDialog = new QProgressDialog("Task in progress...","Cancel",0,100,this);
     progrDialog->setValue(0);
     progrDialog->setModal(true);
@@ -193,6 +198,11 @@ void AdvancedSearchDialog::findAll()
     ui->resultsTableView->setSelectionBehavior(QAbstractItemView::SelectRows);
     QCoreApplication::processEvents();
 
+    delete progrDialog;
+    progrDialog = nullptr;
+    // Cleared last: the message box and processEvents() above run their own
+    // event loops, so the guard must outlive them.
+    _searching = false;
 }
 void AdvancedSearchDialog::on_pbFindAll_clicked()
 {
@@ -274,7 +284,8 @@ QVariant TableModel::headerData(int section, Qt::Orientation orientation, int ro
 
 void AdvancedSearchDialog::setData()
 {
-    progrDialog->cancel();
+    if (progrDialog)
+        progrDialog->cancel();
 
     try{
         if(model)

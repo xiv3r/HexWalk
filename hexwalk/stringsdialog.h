@@ -45,7 +45,10 @@ private:
     Ui::StringsDialog *ui;
     QHexEdit * _hexEdit;
     void searchStrings();
-    QProgressDialog *progrDialog;
+    // searchStrings() pumps the event loop, so it can be started again while
+    // it is still running; that used to overwrite the progress dialog pointer
+    // and leave the first one stuck on screen.
+    bool _searching = false;
     bool findStringInColumn(const QString& target);
 
 };

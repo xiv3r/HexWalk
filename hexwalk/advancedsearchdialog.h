@@ -69,7 +69,12 @@ public:
 
 
     QHexEdit *_hexEdit;
-    QProgressDialog * progrDialog;
+    // Owned across findAll() -> setData(); nullptr when no search is running.
+    // It used to be an uninitialised pointer, and a fresh one was leaked on
+    // every search.
+    QProgressDialog * progrDialog = nullptr;
+    // findAll() pumps the event loop and so can be re-entered mid-search.
+    bool _searching = false;
 
 private slots:
     void on_pbFind_clicked();
