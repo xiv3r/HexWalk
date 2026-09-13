@@ -790,9 +790,7 @@ void QHexEdit::keyPressEvent(QKeyEvent *event)
         /* Cut */
         if (event->matches(QKeySequence::Cut))
         {
-            QByteArray ba = _chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin()).toHex();
-            for (qint64 idx = 32; idx < ba.size(); idx +=33)
-                ba.insert(idx, "\n");
+            QByteArray ba = toHexLines(_chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin()));
             QClipboard *clipboard = QApplication::clipboard();
             clipboard->setText(ba);
             if (_overwriteMode)
@@ -972,14 +970,12 @@ void QHexEdit::keyPressEvent(QKeyEvent *event)
         QByteArray ba;
         if(!_editAreaIsAscii)
         {
-        ba = _chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin()).toHex();
-        for (qint64 idx = 32; idx < ba.size(); idx +=33)
-        ba.insert(idx, "\n");
+        ba = toHexLines(_chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin()));
         }
         else
         {
             ba = _chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin());
-            for (int i = 0; i < ba.length(); i++) {
+            for (qsizetype i = 0; i < ba.length(); i++) {
                 if(ba.at(i) < 32 || ba.at(i) > 126)
                 {
                     ba[i] = '.';
@@ -1585,18 +1581,38 @@ void QHexEdit::showContextMenu(const QPoint &pos)
 
 
 }
+QByteArray QHexEdit::toHexLines(const QByteArray &data)
+{
+    // Built in a single pass. This used to be a toHex() followed by an
+    // insert("\n") every 33 bytes, and each insert moved everything after it:
+    // selecting a 3 MB file gives 6 MB of hex and ~190k inserts, i.e. some
+    // 600 GB of copying, which froze the UI for minutes on a plain Ctrl+C.
+    const QByteArray hex = data.toHex();
+    // Two digits per byte, and follow the view: _bytesPerLine is recomputed
+    // from the widget width whenever dynamicBytesPerLine() is on.
+    const qsizetype lineLen = 2 * qMax(1, _bytesPerLine);
+
+    QByteArray out;
+    out.reserve(hex.size() + hex.size() / lineLen + 1);
+    for (qsizetype idx = 0; idx < hex.size(); idx += lineLen)
+    {
+        if (idx > 0)
+            out.append('\n');
+        out.append(hex.constData() + idx, qMin(lineLen, hex.size() - idx));
+    }
+    return out;
+}
+
 void QHexEdit::copyText(){
     QByteArray ba;
     if(!_editAreaIsAscii)
     {
-        ba = _chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin()).toHex();
-        for (qint64 idx = 32; idx < ba.size(); idx +=33)
-            ba.insert(idx, "\n");
+        ba = toHexLines(_chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin()));
     }
     else
     {
         ba = _chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin());
-        for (int i = 0; i < ba.length(); i++) {
+        for (qsizetype i = 0; i < ba.length(); i++) {
             if(ba.at(i) < 32 || ba.at(i) > 126)
             {
                 ba[i] = '.';
@@ -1622,9 +1638,7 @@ void QHexEdit::pasteText(){
     resetSelection(getSelectionBegin());
 }
 void QHexEdit::cutText(){
-    QByteArray ba = _chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin()).toHex();
-    for (qint64 idx = 32; idx < ba.size(); idx +=33)
-        ba.insert(idx, "\n");
+    QByteArray ba = toHexLines(_chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin()));
     QClipboard *clipboard = QApplication::clipboard();
     clipboard->setText(ba);
     if (_overwriteMode)

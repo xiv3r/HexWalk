@@ -32,6 +32,8 @@ signals:
     void mouseMoved(qint64 address);
     void rubberBandEvent();
 protected:
+    // false when the chart has no series yet, in which case value is untouched
+    bool valueAt(const QPoint &pos, QPointF &value) const;
     void mousePressEvent(QMouseEvent *event);
     void mouseMoveEvent(QMouseEvent *event);
     void resizeEvent(QResizeEvent *event);

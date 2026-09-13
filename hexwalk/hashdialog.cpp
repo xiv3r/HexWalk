@@ -21,6 +21,7 @@
 #include "ui_hashdialog.h"
 #include <QFile>
 #include <QCryptographicHash>
+#include <QPointer>
 #include <QDebug>
 HashDialog::HashDialog(QWidget *parent) :
     QDialog(parent),
@@ -46,6 +47,13 @@ void HashDialog::calculate(QString filepath)
     if (_hashing)
         return;
     _hashing = true;
+
+    // The progress is an inline bar, so there is no modal dialog to keep the
+    // rest of the UI out of the processEvents() below. HexWalkMain has
+    // WA_DeleteOnClose, so closing it mid-hash posts a deleteLater() that the
+    // next processEvents() of this loop delivers, deleting this dialog with it.
+    // Everything after that point dereferences ui, so check before touching it.
+    QPointer<HashDialog> self(this);
 
     QFile in(filepath);
     haltCalc = false;
@@ -78,6 +86,8 @@ void HashDialog::calculate(QString filepath)
             hashsha1.addData(buf, bytesRead);
             hashsha256.addData(buf, bytesRead);
             QCoreApplication::processEvents();
+            if (self.isNull())
+                return;
 
         }
         ui->progressBar->hide();

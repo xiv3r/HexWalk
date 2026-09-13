@@ -451,6 +451,9 @@ private:
     void readBuffers();
     void buildCharMap();                        // fill _cpShown / _spanShown from _dataShown
     QString toReadable(const QByteArray &ba);
+    // Hex representation of data, broken into lines of bytesPerLine() bytes so
+    // that what copy and cut put on the clipboard is laid out like the view.
+    QByteArray toHexLines(const QByteArray &data);
 
 private slots:
     void adjust();                              // recalc pixel positions

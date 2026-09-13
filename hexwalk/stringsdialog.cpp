@@ -65,6 +65,12 @@ void StringsDialog::searchStrings()
     // every search and, if a second search started inside processEvents(),
     // cancel() closed the wrong dialog.
     QProgressDialog progrDialog("Search in progress...","Cancel",0,100,this);
+    // Window modal, so that the processEvents() below can only reach the
+    // progress dialog. Without it the main window keeps its close button live,
+    // and HexWalkMain has WA_DeleteOnClose: the resulting deleteLater() is
+    // delivered by the very next processEvents() of this loop, taking this
+    // dialog and the progress dialog parented to it down mid-search.
+    progrDialog.setWindowModality(Qt::WindowModal);
     progrDialog.setValue(0);
     progrDialog.show();
     /*while(ui->tableWidget->rowCount() > 0)
@@ -234,6 +240,11 @@ void StringsDialog::on_pbSearch_clicked()
 
 void StringsDialog::on_tableWidget_clicked(const QModelIndex &index)
 {
+    QTableWidgetItem *addrItem = ui->tableWidget->item(index.row(),0);
+    QTableWidgetItem *strItem = ui->tableWidget->item(index.row(),1);
+    if(!addrItem || !strItem)
+        return;
+
     _hexEdit->indexOf("",ui->tableWidget->item(index.row(),0)->text().toInt(NULL,16),false,false);
     _hexEdit->setSelection(ui->tableWidget->item(index.row(),0)->text().toInt(NULL,16)*2+ui->tableWidget->item(index.row(),1)->text().length()*2);
     _hexEdit->setCursorPosition(ui->tableWidget->item(index.row(),0)->text().toInt(NULL,16)*2);

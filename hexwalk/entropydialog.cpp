@@ -91,6 +91,12 @@ void EntropyDialog::calculate()
     // a member it was leaked on every run and cancelled the wrong dialog when
     // two runs overlapped.
     QProgressDialog progrDialog("Entropy calculation in progress...","Cancel",0,100,this);
+    // Window modal so that the processEvents() below can only deliver events to
+    // the progress dialog itself. Without it the whole scan runs with the chart,
+    // the menus and the main window's close button live, i.e. the chart can be
+    // clicked while it still holds the empty placeholder QChart, and this dialog
+    // (parent of the stack allocated progrDialog) can be destroyed underneath us.
+    progrDialog.setWindowModality(Qt::WindowModal);
     progrDialog.setValue(0);
     progrDialog.show();
 
@@ -152,7 +158,8 @@ void EntropyDialog::mousePressed(qint64 value)
 }
 void EntropyDialog::mouseMoved(qint64 address)
 {
-    if(address > 0 && address < _hexed->getSize()){
+    // series is null before the first scan and empty if one was cancelled straight away
+    if(series && series->count() > 0 && address > 0 && address < _hexed->getSize()){
 
         ui->AddressEdt->setText(QString::number(address));
        ui->ValueEdt->setText(QString::number(findClosestPoint(series, address).y(), 'f', 2));
@@ -165,16 +172,22 @@ void EntropyDialog::limitZoomOut() {
 
 
 
-       QValueAxis *axisX = dynamic_cast<QValueAxis *>(ui->entropyChart->chart()->axisX());
+       // No chart or no axes yet before the first scan: back() on an empty
+       // QList would be undefined behaviour, so ask axes() and check.
+       QChart *chart = ui->entropyChart->chart();
+       if (!chart || chart->axes(Qt::Horizontal).isEmpty())
+           return;
+
+       QValueAxis *axisX = dynamic_cast<QValueAxis *>(chart->axes(Qt::Horizontal).back());
        if (axisX) {
 
            if(axisX->min()< 0.0)
            {
-               ui->entropyChart->chart()->axes(Qt::Horizontal).back()->setRange(0.0,axisX->max());
+               axisX->setRange(0.0,axisX->max());
            }
            if(axisX->max()>_hexed->getSize())
            {
-               ui->entropyChart->chart()->axes(Qt::Horizontal).back()->setRange(axisX->min(),_hexed->getSize());
+               axisX->setRange(axisX->min(),_hexed->getSize());
            }
        }
 

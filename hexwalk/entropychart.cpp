@@ -24,14 +24,26 @@ EntropyChart::EntropyChart(QWidget *parent):
 
 }
 
+// The chart QChartView creates for itself is empty, and it stays empty until
+// EntropyDialog::calculate() installs the first real one at the end of a scan.
+// calculate() pumps the event loop while it runs, so these handlers do get
+// called with no series attached: series().at(0) would then index an empty
+// QList, which is a crash and not a warning in a release build.
+bool EntropyChart::valueAt(const QPoint &pos, QPointF &value) const
+{
+    QChart *c = this->chart();
+    if (!c || c->series().isEmpty())
+        return false;
+    value = c->mapToValue(pos, c->series().at(0));
+    return true;
+}
+
 void EntropyChart::mousePressEvent(QMouseEvent * event){
-    auto curPoint = QCursor::pos();
-    curPoint = this->mapFromGlobal(curPoint);
-    auto pickVal = this->mapToScene(curPoint);
-    pickVal = this->chart()->mapFromScene(curPoint);
-    pickVal = this->chart()->mapToValue(curPoint,this->chart()->series().at(0));
-emit rubberBandEvent();
-    emit mousePressed(qint64(pickVal.x()));
+    QPointF pickVal;
+    if (valueAt(this->mapFromGlobal(QCursor::pos()), pickVal)) {
+        emit rubberBandEvent();
+        emit mousePressed(qint64(pickVal.x()));
+    }
 
     QChartView::mousePressEvent(event);
 
@@ -47,12 +59,9 @@ void EntropyChart::mouseReleaseEvent(QMouseEvent *event){
 }
 
 void EntropyChart::mouseMoveEvent(QMouseEvent * event){
-    auto curPoint = QCursor::pos();
-    curPoint = this->mapFromGlobal(curPoint);
-    auto pickVal = this->mapToScene(curPoint);
-    pickVal = this->chart()->mapFromScene(curPoint);
-    pickVal = this->chart()->mapToValue(curPoint,this->chart()->series().at(0));
+    QPointF pickVal;
+    if (valueAt(this->mapFromGlobal(QCursor::pos()), pickVal))
+        emit mouseMoved(qint64(pickVal.x()));
 
-    emit mouseMoved(qint64(pickVal.x()));
     QChartView::mouseMoveEvent(event);
 }

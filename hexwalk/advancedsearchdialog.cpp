@@ -23,6 +23,7 @@
 #include "resultType.h"
 #include "worditemdelegate.h"
 #include <QProgressDialog>
+#include <QPointer>
 #include <QMessageBox>
 
 AdvancedSearchDialog::AdvancedSearchDialog(QHexEdit *hexEdit, QWidget *parent) :
@@ -31,6 +32,9 @@ AdvancedSearchDialog::AdvancedSearchDialog(QHexEdit *hexEdit, QWidget *parent) :
 {
   ui->setupUi(this);
   _hexEdit = hexEdit;
+  // Set once: the delegate is independent of the model, so creating one per
+  // search in setData() only piled up an extra instance on every search.
+  ui->resultsTableView->setItemDelegate(new WordItemDelegate(this));
   //model = new TableModel(this);
 
 
@@ -119,6 +123,12 @@ void AdvancedSearchDialog::findAll()
         return;
     _searching = true;
 
+    // setData() cancels the progress dialog, so the tail of this function runs
+    // with nothing modal on screen. HexWalkMain has WA_DeleteOnClose, so a
+    // click on its close button there posts a deleteLater() that this dialog,
+    // being a child, does not survive. Checked before the last member access.
+    QPointer<AdvancedSearchDialog> self(this);
+
     delete progrDialog;                 // no-op on the first search
     progrDialog = new QProgressDialog("Task in progress...","Cancel",0,100,this);
     progrDialog->setValue(0);
@@ -196,10 +206,17 @@ void AdvancedSearchDialog::findAll()
     ui->resultsTableView->resizeColumnsToContents();
     ui->resultsTableView->verticalHeader()->show();
     ui->resultsTableView->setSelectionBehavior(QAbstractItemView::SelectRows);
-    QCoreApplication::processEvents();
 
+    // Deleted before the repaint below: nothing here needs it any more, and
+    // leaving it alive means a deleteLater() delivered by processEvents() can
+    // destroy it as a child of this dialog, ahead of the delete below.
     delete progrDialog;
     progrDialog = nullptr;
+
+    QCoreApplication::processEvents();
+
+    if (self.isNull())
+        return;
     // Cleared last: the message box and processEvents() above run their own
     // event loops, so the guard must outlive them.
     _searching = false;
@@ -297,8 +314,6 @@ void AdvancedSearchDialog::setData()
         model->populateData(resultslist);
         ui->resultsTableView->clearSpans();
         ui->resultsTableView->setModel(model);
-        auto wordItemDelegate = new WordItemDelegate(this);
-        ui->resultsTableView->setItemDelegate(wordItemDelegate);
     }
     catch(QException &)
     {
@@ -308,6 +323,11 @@ void AdvancedSearchDialog::setData()
 
 void AdvancedSearchDialog::on_resultsTableView_clicked(const QModelIndex &index)
 {
+    // The view is fed from a copy of resultslist, so a row can outlive its
+    // entry here: at() on a stale row is undefined behaviour, not an error.
+    if(index.row() < 0 || index.row() >= resultslist.size())
+        return;
+
     //_hexEdit->indexOf("",resultslist.at(index.row()).cursor,ui->cbRegex->isChecked(),ui->cbCase->isChecked(),ui->cbFindFormat->currentIndex()==1);
     _hexEdit->setCursorPosition(resultslist.at(index.row()).cursor);
     _hexEdit->indexOf(_findBa, resultslist.at(index.row()).cursor - 1,ui->cbRegex->isChecked(),ui->cbCase->isChecked(), ui->cbInvertMatch->isChecked());
@@ -322,6 +342,12 @@ void TableModel::clearData()
 }
 void AdvancedSearchDialog::on_pbCancel_clicked()
 {
+    // Close drops the results, so the view has to let go of them too: the
+    // dialog is created once and reused, so the rows would otherwise still be
+    // on screen when it is reopened, now indexing an empty resultslist.
+    ui->resultsTableView->setModel(nullptr);
+    delete model;
+    model = nullptr;
 
     resultslist.clear();
 
