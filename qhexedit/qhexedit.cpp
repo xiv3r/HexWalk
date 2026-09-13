@@ -975,10 +975,12 @@ void QHexEdit::keyPressEvent(QKeyEvent *event)
         else
         {
             ba = _chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin());
-            for (qsizetype i = 0; i < ba.length(); i++) {
-                if(ba.at(i) < 32 || ba.at(i) > 126)
+            // No index: Qt 5's QByteArray::operator[] only takes int or uint,
+            // so a qsizetype index is ambiguous there; Qt 6 takes qsizetype.
+            for (char &c : ba) {
+                if(c < 32 || c > 126)
                 {
-                    ba[i] = '.';
+                    c = '.';
                 }
             }
         }
@@ -1612,10 +1614,11 @@ void QHexEdit::copyText(){
     else
     {
         ba = _chunks->data(getSelectionBegin(), getSelectionEnd() - getSelectionBegin());
-        for (qsizetype i = 0; i < ba.length(); i++) {
-            if(ba.at(i) < 32 || ba.at(i) > 126)
+        // No index, see keyPressEvent(): qsizetype is ambiguous for Qt 5's operator[]
+        for (char &c : ba) {
+            if(c < 32 || c > 126)
             {
-                ba[i] = '.';
+                c = '.';
             }
         }
     }
